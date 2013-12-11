@@ -3,7 +3,7 @@
 var fs = require('fs'),
     path = require('path'),
     parser = require('esprima'),
-    optimist = require('optimist');
+    program = require('commander');
 
 var files = {},
     processingQueue = 0,
@@ -15,33 +15,35 @@ var referenceNodes = {
     ModuleDeclaration : 'external'
 };
 
-var argv = optimist.argv;
+program
+    .option('-l --libdir <path>', 'Set the directory used to resolve absolute links (like node_modules)', path.resolve(baseDir, 'lib'))
+    .option('--external-modules', 'Do not bundle files referenced with the `module` syntax', true);
 
-if (!argv.entry) throw new Error('You must specify an entry point file');
+program
+    .command('*')
+    .description('Recursively bundle module references into the given file')
+    .action(function (file) {
+        buildDependencyGraph({ path: path.resolve(baseDir, file) });
+    });
 
-buildDependencyGraph({ path: argv.entry });
+program.parse(process.argv);
 
-function buildDependencyGraph (fileReference, dir) {
+function buildDependencyGraph (reference) {
     processingQueue++;
-    dir || (dir = baseDir);
-    var filePath = path.resolve(dir + '\\' + fileReference.path);
-    console.log('Path: ' + fileReference.path);
-    console.log('File: ' + filePath);
-    console.log('Type: ' + fileReference.type);
 
-    if (files.hasOwnProperty(filePath)) return hasFinishedProcessing();
+    if (files.hasOwnProperty(reference.path)) return hasFinishedProcessing();
 
-    if (referenceNodes[fileReference.type] === 'external') {
-        files[filePath] = externalFile;
+    if (referenceNodes[reference.type] === 'external') {
+        files[reference.path] = externalFile;
         return hasFinishedProcessing();
     }
 
-    fs.readFile(filePath, 'utf8', function (err, data) {
+    fs.readFile(reference.path, 'utf8', function (err, data) {
         if (err) throw err;
 
-        var references = parseForReferences(data);
+        var references = parseForReferences(data, path.dirname(reference.path));
 
-        files[fileReference.path] = {
+        files[reference.path] = {
             content: data,
             references: references.map(function (r) {
                 return r.path;
@@ -49,14 +51,14 @@ function buildDependencyGraph (fileReference, dir) {
         };
 
         references.forEach(function (ref) {
-            buildDependencyGraph(ref, path.dirname(filePath));
+            buildDependencyGraph(ref);
         });
 
         return hasFinishedProcessing();
     });
 }
 
-function parseForReferences (file) {
+function parseForReferences (file, relativeTo) {
     var ast = parser.parse(file);
 
     return ast.body
@@ -65,7 +67,7 @@ function parseForReferences (file) {
         })
         .map(function(item) {
             return {
-                path: item.source.value + '.js',
+                path: resolveReferencePath(item.source.value + '.js', relativeTo),
                 type: item.type
             };
         });
@@ -84,3 +86,12 @@ function hasFinishedProcessing () {
     process.exit(1);
 }
 
+function resolveReferencePath (filepath, relativeTo) {
+    if (isAbsolute(filepath)) relativeTo = path.resolve(baseDir, program.libdir);
+    return path.resolve(relativeTo, filepath);
+}
+
+function isAbsolute (filepath) {
+    if (!filepath) return false;
+    if (filepath[0] != '.') return true;
+}
