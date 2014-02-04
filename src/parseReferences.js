@@ -41,16 +41,16 @@ function buildDependencyGraph (reference) {
     fs.readFile(reference.path, 'utf8', function (err, data) {
         if (err) throw err;
 
-        var references = parseForReferences(data, path.dirname(reference.path));
+        var parsed = parseForReferences(data, path.dirname(reference.path));
 
         files[reference.path] = {
-            content: data,
-            references: references.map(function (r) {
+            ast: parsed.ast,
+            references: parsed.references.map(function (r) {
                 return r.path;
             })
         };
 
-        references.forEach(function (ref) {
+        parsed.references.forEach(function (ref) {
             buildDependencyGraph(ref);
         });
 
@@ -61,16 +61,19 @@ function buildDependencyGraph (reference) {
 function parseForReferences (file, relativeTo) {
     var ast = parser.parse(file);
 
-    return ast.body
+    var references = ast.body
         .filter(function(item) {
             return referenceNodes.hasOwnProperty(item.type);
         })
         .map(function(item) {
+            console.log(item.specifiers.length > 1 && item.specifiers);
             return {
                 path: resolveReferencePath(item.source.value + '.js', relativeTo),
                 type: item.type
             };
         });
+
+    return { ast: ast, references: references };
 }
 
 function hasFinishedProcessing () {

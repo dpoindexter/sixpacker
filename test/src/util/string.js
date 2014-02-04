@@ -1,4 +1,4 @@
-import { identity } from './type';
+import identity from './type';
 import col from './collection';
 
 function toPascalCase () {

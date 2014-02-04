@@ -1,5 +1,5 @@
 import { forEach } from './collection';
-import { toPascalCase } from './string';
+import { toPascalCase, test as testing, foo } from './string';
 
 function toType (obj) {
     return ({}).toString.call(obj).match(/\s([a-zA-Z]+)/)[1].toLowerCase();
@@ -22,7 +22,9 @@ var identity = (function () {
     });
 
     return fns;
-});
+})();
 
-export { toType, identity };
+identity.toType = toType;
+
+export default identity;
 

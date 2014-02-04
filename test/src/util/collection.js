@@ -1,10 +1,10 @@
-import { identity } from './type' 
+import identity from './type';
 
 function forEach (collection, fn, ctx) {
     ctx || (ctx = null);
 
     if (identity.isArray(collection)) {
-        for (var i = 0, j = collection.length; i < j, i++) {
+        for (var i = 0, j = collection.length; i < j; i++) {
             fn.call(ctx, collection[i], i);
         }
         return;
@@ -23,4 +23,7 @@ function toArray (arr) {
     return [].prototype.slice.call(arr);
 }
 
-export { forEach, toArray };
+export default var collection = {
+    isArray: isArray,
+    isObject: isObject
+}

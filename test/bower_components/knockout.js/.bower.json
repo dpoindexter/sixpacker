@@ -20,6 +20,5 @@
   },
   "_source": "git://github.com/bowerjs/knockout.git",
   "_target": "~3.0.0",
-  "_originalSource": "knockout.js",
-  "_direct": true
+  "_originalSource": "knockout.js"
 }

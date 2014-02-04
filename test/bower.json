@@ -1,0 +1,19 @@
+{
+  "name": "uShip Static",
+  "version": "0.0.1",
+  "authors": [
+    "Daniel Poindexter <dpoindexter@uship.com>"
+  ],
+  "description": "uShip Static content",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components"
+  ],
+  "dependencies": {
+    "jquery": "~2.1.0",
+    "knockout.js": "~3.0.0",
+    "util": "./src/util/util.js"
+  }
+}
