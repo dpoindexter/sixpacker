@@ -35,44 +35,34 @@ ModuleBundler.prototype.buildDependencyGraph = function (reference) {
         return this.hasFinishedProcessing();
     }
 
-    fs.readFile(reference.path, 'utf8', this.processFileContents.bind(this));
+    fs.readFile(reference.path, 'utf8', this.processFile.bind(this, reference));
 };
 
-ModuleBundler.prototype.processFileContents = function (err, data) {
+ModuleBundler.prototype.processFile = function (reference, err, data) {
     if (err) throw err;
 
-    var parsed = this.parseForReferences(data, path.dirname(reference.path));
+    var pathsRelativeTo = path.dirname(reference.path);
+
+    var parsed = new Compiler(data, moduleNameFromPath(reference.path));
+    parsed.parse();
+
+    var references = parsed.imports.map(function (item) {
+        return {
+            path: resolveReferencePath(item.source.value + '.js', pathsRelativeTo),
+            type: item.type
+        };
+    });
 
     this.files[reference.path] = {
-        ast: parsed.ast,
-        references: parsed.references.map(function (r) {
-            return r.path;
+        source: parsed.string,
+        references: references.map(function (item) {
+            return item.path;
         })
     };
 
-    parsed.references.forEach(function (ref) {
-        this.buildDependencyGraph(ref);
-    });
+    references.forEach(this.buildDependencyGraph.bind(this));
 
     return this.hasFinishedProcessing();
-};
-
-ModuleBundler.prototype.parseForReferences = function (file, relativeTo) {
-    var ast = parser.parse(file);
-
-    var references = ast.body
-        .filter(function(item) {
-            return referenceNodes.hasOwnProperty(item.type);
-        })
-        .map(function(item) {
-            console.log(item.specifiers.length > 1 && item.specifiers);
-            return {
-                path: resolveReferencePath(item.source.value + '.js', relativeTo),
-                type: item.type
-            };
-        });
-
-    return { ast: ast, references: references };
 };
 
 ModuleBundler.prototype.hasFinishedProcessing = function () {
@@ -100,6 +90,11 @@ function isAbsolute (filepath) {
     if (filepath[0] != '.') return true;
 }
 
+function moduleNameFromPath (path) {
+    var parts = path.split('/');
+    return path[path.length - 1];
+}
+
 function transpile (fileData, moduleName, globalName, imports) {
     GlobalsCompiler.prototype.buildSuffix = globalsCompilerOverrides.buildSuffix;
 
@@ -112,4 +107,4 @@ function transpile (fileData, moduleName, globalName, imports) {
     return compiler.toGlobals();
 }
 
-module.exports.ModuleBundler = ModuleBundler;
+module.exports = ModuleBundler;
