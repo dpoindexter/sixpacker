@@ -1,3 +1,4 @@
+import $ from 'jquery';
 import log from './log';
 import type from './type';
 import collection from './collection';

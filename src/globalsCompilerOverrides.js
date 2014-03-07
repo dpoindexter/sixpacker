@@ -1,4 +1,12 @@
-module.exports.buildSuffix = function () {
+function buildBundlePrefix () {
+
+}
+
+function buildBundleSuffix () {
+
+}
+
+function buildInternalDependencySuffix () {
     var dependencyNames = this.dependencyNames;
 
     var out = '(';
@@ -26,4 +34,10 @@ module.exports.buildSuffix = function () {
 
     out += ')';
     return out;
+}
+
+module.exports = {
+    buildBundlePrefix: buildBundlePrefix,
+    buildBundleSuffix: buildBundleSuffix,
+    buildInternalDependencySuffix: buildInternalDependencySuffix
 };
