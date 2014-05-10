@@ -1,8 +1,7 @@
 var fs = require('fs'),
     path = require('path'),
     Compiler = require('es6-module-transpiler').Compiler,
-    GlobalsCompiler = require('es6-module-transpiler').GlobalsCompiler,
-    globalsCompilerOverrides = require('./globalsCompilerOverrides');
+    InternalCompiler = require('./InternalGlobalsCompiler');
 
 var baseDir = process.cwd();
 
@@ -11,74 +10,77 @@ var defaultGlobalsCompilerMethods = {
     buildSuffix: GlobalsCompiler.prototype.buildSuffix
 };
 
-function ModuleBundler (file) {
-    this.entryFile = path.resolve(baseDir, file);
-    this.dependencies = [];
-    this.internalModules = [];
-    this._transpilationStack = [];
-    this._processingQueueCount = 0;
-}
+class ModuleBundler {
 
-ModuleBundler.prototype.getDependencies = function () {
-    this._buildDependencyGraph(this.entryFile);
-};
-
-ModuleBundler.prototype.isExternalDependency = function (dependency) {
-    return dependency.type === 'ModuleDeclaration' || 
-        isAbsolute(dependency.source.value);
-};
-
-ModuleBundler.prototype._buildDependencyGraph = function (reference) {
-    this._processingQueueCount++;
-
-    if (this.internalModules.indexOf(reference) > -1) {
-        this._finishedProcessingFile();
-        return;
+    constructor (file) {
+        this.entryFile = path.resolve(baseDir, file);
+        this.dependencies = [];
+        this.internalModules = [];
+        this._transpilationStack = [];
+        this._processingQueueCount = 0;
     }
 
-    fs.readFile(reference, 'utf8', this._processFile.bind(this, reference));
-};
+    getDependencies () {
+        this._buildDependencyGraph(this.entryFile);
+    }
 
-ModuleBundler.prototype._processFile = function (reference, err, fileContents) {
-    if (err) throw err;
+    isExternalDependency (dependency) {
+        return dependency.type === 'ModuleDeclaration' || 
+            isAbsolute(dependency.source.value);
+    }
 
-    var pathsRelativeTo = path.dirname(reference),
-        isExternalDependency = this.isExternalDependency.bind(this);
+    _buildDependencyGraph (reference) {
+        this._processingQueueCount++;
 
-    var parsed = new Compiler(fileContents, moduleNameFromPath(reference));
-    parsed.parse();
+        if (this.internalModules.indexOf(reference) > -1) {
+            this._finishedProcessingFile();
+            return;
+        }
 
-    var dependencies = parsed.imports
-        .filter(isExternalDependency)
-        .map(function (dep) { return dep.source.value; });
+        fs.readFile(reference, 'utf8', 
+            (reference, err, contents) => this._processFile(reference, err, contents));
+    }
 
-    var internalModules = parsed.imports
-        .filter(function (dep) {
-            return !isExternalDependency(dep);
-        })
-        .map(function (dep) {
-            return path.resolve(pathsRelativeTo, dep.source.value + '.js');
-        });
+    _processFile (reference, err, fileContents) {
+        if (err) throw err;
 
-    addUnique(this.dependencies, dependencies);
-    addUnique(this.internalModules, [ reference ]);
+        var pathsRelativeTo = path.dirname(reference);
 
-    this._transpilationStack.push(parsed);
+        var parsed = new InternalCompiler(fileContents, moduleNameFromPath(reference));
+        parsed.parse();
 
-    internalModules.forEach(this._buildDependencyGraph.bind(this));
+        var dependencies = parsed.imports
+            .filter(dep => this.isExternalDependency(dep))
+            .map(dep => dep.source.value);
 
-    return this._finishedProcessingFile();
-};
+        var internalModules = parsed.imports
+            .filter(dep => !this.isExternalDependency)
+            .map(dep => path.resolve(pathsRelativeTo, dep.source.value + '.js'));
 
-ModuleBundler.prototype._finishedProcessingFile = function () {
-    if (--this._processingQueueCount) return;
+        addUnique(this.dependencies, dependencies);
+        addUnique(this.internalModules, [ reference ]);
 
-    console.log(JSON.stringify({ 
-        dependencies: this.dependencies, 
-        internalModules: this.internalModules }, null, 2));
-    
-    process.exit(1);
-};
+        this._transpilationStack.push(parsed);
+
+        internalModules.forEach(module => this._buildDependencyGraph(module));
+
+        return this._finishedProcessingFile();
+    }
+
+    _finishedProcessingFile () {
+        if (--this._processingQueueCount) return;
+
+        var output = { 
+            dependencies: this.dependencies, 
+            internalModules: this.internalModules 
+        };
+
+        console.log(JSON.stringify(output, null, 2));
+        
+        process.exit(1);
+    }
+
+}
 
 function isAbsolute (filepath) {
     return !!filepath && filepath[0] !== '.';
@@ -90,10 +92,9 @@ function moduleNameFromPath (filepath) {
 }
 
 function transpile (fileData, moduleName, globalName, imports) {
-    GlobalsCompiler.prototype.buildSuffix = globalsCompilerOverrides.buildSuffix;
 
-    var compiler = new Compiler(fileData, moduleName, {
-        imports: imports,
+    var compiler = new InternalCompiler(fileData, moduleName, {
+        imports,
         global: globalName,
         into: moduleName
     });
@@ -102,9 +103,8 @@ function transpile (fileData, moduleName, globalName, imports) {
 }
 
 function addUnique (collection, toAdd) {
-    var uniqueItems = toAdd.filter(function (item) {
-        return collection.indexOf(item) === -1;
-    });
+    if (!Array.isArray(toAdd)) toAdd = [ toAdd ];
+    var uniqueItems = toAdd.filter(item => collection.indexOf(item) === -1);
 
     Array.prototype.push.apply(collection, uniqueItems);
 
