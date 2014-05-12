@@ -1,6 +1,6 @@
 var fs = require('fs'),
     path = require('path'),
-    Compiler = require('es6-module-transpiler').Compiler,
+    Promise = require('bluebird'),
     InternalCompiler = require('./InternalGlobalsCompiler');
 
 var baseDir = process.cwd();
@@ -18,6 +18,7 @@ class ModuleBundler {
         this.internalModules = [];
         this._transpilationStack = [];
         this._processingQueueCount = 0;
+        this._processingPromises = [];
     }
 
     getDependencies () {
@@ -31,6 +32,8 @@ class ModuleBundler {
 
     _buildDependencyGraph (reference) {
         this._processingQueueCount++;
+
+                
 
         if (this.internalModules.indexOf(reference) > -1) {
             this._finishedProcessingFile();
