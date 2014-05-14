@@ -1,7 +1,7 @@
 var fs = require('fs'),
     path = require('path'),
     Promise = require('bluebird'),
-    InternalCompiler = require('./InternalGlobalsCompiler');
+    FileToProcess = require('./FileToProcess');
 
 var baseDir = process.cwd();
 
@@ -18,7 +18,7 @@ class ModuleBundler {
         this.internalModules = [];
         this._transpilationStack = [];
         this._processingQueueCount = 0;
-        this._processingPromises = [];
+        this._processedFiles = [];
     }
 
     getDependencies () {
@@ -31,17 +31,13 @@ class ModuleBundler {
     }
 
     _buildDependencyGraph (reference) {
-        this._processingQueueCount++;
+        if (this._processedFiles.some(file => file.reference === reference)) return;
 
-                
+        var fileToProcess = new FileToProcess(reference);
 
-        if (this.internalModules.indexOf(reference) > -1) {
-            this._finishedProcessingFile();
-            return;
-        }
+        fs.readFile(reference, 'utf8', fileToProcess.readFile);
 
-        fs.readFile(reference, 'utf8', 
-            (reference, err, contents) => this._processFile(reference, err, contents));
+        this._processedFiles.push(fileToProcess);
     }
 
     _processFile (reference, err, fileContents) {
@@ -85,15 +81,6 @@ class ModuleBundler {
 
 }
 
-function isAbsolute (filepath) {
-    return !!filepath && filepath[0] !== '.';
-}
-
-function moduleNameFromPath (filepath) {
-    var parts = filepath.split('/');
-    return parts[filepath.length - 1];
-}
-
 function transpile (fileData, moduleName, globalName, imports) {
 
     var compiler = new InternalCompiler(fileData, moduleName, {
@@ -103,15 +90,6 @@ function transpile (fileData, moduleName, globalName, imports) {
     });
 
     return compiler.toGlobals();
-}
-
-function addUnique (collection, toAdd) {
-    if (!Array.isArray(toAdd)) toAdd = [ toAdd ];
-    var uniqueItems = toAdd.filter(item => collection.indexOf(item) === -1);
-
-    Array.prototype.push.apply(collection, uniqueItems);
-
-    return collection;
 }
 
 module.exports = ModuleBundler;
