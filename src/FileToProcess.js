@@ -1,4 +1,6 @@
 var util = require('./util'),
+    path = require('path'),
+    fs = Promise.promisifyAll(require('fs')),
     InternalCompiler = require('./InternalGlobalsCompiler');
 
 class FileToProcess {
@@ -10,13 +12,17 @@ class FileToProcess {
         this.internalModules = [];
     }
 
-    process (err, file) {
-        if (err) throw err;
+    process () {
+        return fs.readFile(this.reference, 'utf8')
+            .then(data => this.parse(data));
+            //.catch(err => throw err);
+    }
 
+    parse (fileData) {
         var ref = this.reference,
             pathsRelativeTo = path.dirname(ref);
 
-        this.compiler = new InternalCompiler(file, util.moduleNameFromPath(ref));
+        this.compiler = new InternalCompiler(fileData, util.moduleNameFromPath(ref));
         this.compiler.parse();
 
         this.dependencies = this.compiler.imports
@@ -27,7 +33,7 @@ class FileToProcess {
             .filter(dep => !this.isExternalDependency(dep))
             .map(dep => path.resolve(pathsRelativeTo, dep.source.value + '.js')); 
 
-        return this.internalModules;
+        return this;
     }
 
     isExternalDependency (dependency) {

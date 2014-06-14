@@ -2,7 +2,7 @@ var GlobalsCompiler = require('es6-module-transpiler').GlobalsCompiler;
 
 class InternalGlobalsCompiler extends GlobalsCompiler {
 
-    buildSuffix () {
+    buildSuffix (moduleName) {
         var dependencyNames = this.dependencyNames;
 
         var out = '(';

@@ -1,4 +1,5 @@
-var fs = require('fs'),
+var Promise = require('bluebird'),
+    co = require('co'),
     path = require('path'),
     FileToProcess = require('./FileToProcess');
 
@@ -10,40 +11,39 @@ class ModuleBundler {
         this.entryFile = path.resolve(baseDir, file);
         this.dependencies = [];
         this.internalModules = [];
+        this.walker;
     }
 
     getDependencies () {
-        var walk = this.walkDependencyGraph(this.entryFile),
-            files;
+        co(function *() {
+            var files = yield this.walkDependencyGraph(this.entryFile);
 
-        while (!(flattenedGraph = walk.next()).done) {};
-
-        for (var file of files) {
-            console.log({
-                reference: file.reference,
-                internalModules: file.internalModules,
-                dependencies: file.dependencies
+            var output = files.map(file => {
+                return {
+                    reference: file.reference,
+                    internalModules: file.internalModules,
+                    dependencies: file.dependencies
+                };
             });
-        }
-        
-        process.exit(1);
+
+            console.log(output);
+            
+            process.exit(0);
+        });
     }
 
-    walkDependencyGraph *(reference, processedFiles) {
+    *walkDependencyGraph (reference, processedFiles) {
         if (!processedFiles) processedFiles = [];
 
         if (processedFiles.some(file => file.reference === reference)) return processedFiles;
 
-        var fileToProcess = new FileToProcess(reference);
+        var processedFile = yield new FileToProcess(reference).process();
 
-        var internalModules = fileToProcess.process(...yield readFile(reference, 'utf8'));
-        //fs.readFile(reference, 'utf8', fileToProcess.readFile);
+        processedFiles.push(processedFile);
 
-        processedFiles.push(fileToProcess);
+        if (!processedFile.internalModules.length) return processedFiles;
 
-        if (!internalModules.length) return processedFiles;
-
-        for (var ref of internalModules) {
+        for (var ref of processedFile.internalModules) {
             yield* this.walkDependencyGraph(ref, processedFiles);
         }
 
